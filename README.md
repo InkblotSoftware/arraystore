@@ -63,21 +63,21 @@ Project classes
 
 Reference-based classes (based on standard C types):
 
-- _asenv_t_ Database environment - start by opening a DB via one of these
-- _astxn_t_ Database transaction - all interaction happens via one of these
-- _byteas_t_ Array store of byte arrays
-- _i32as_t_ Of int32 arrays
-- _i64as_t_ Of int64 arrays
-- _f32as_t_ Of 32-bit float arrays
-- _f64as_t_ Of 32-bit float arrays
+- *asenv_t* Database environment - start by opening a DB via one of these
+- *astxn_t* Database transaction - all interaction happens via one of these
+- *byteas_t* Array store of byte arrays
+- *i32as_t* Of int32 arrays
+- *i64as_t* Of int64 arrays
+- *f32as_t* Of 32-bit float arrays
+- *f64as_t* Of 32-bit float arrays
 
 Value types (based on standard C types):
 
-- _bytespan_ Span of contiguous immutable bytes in memory
-- _i32span_ Of int32s
-- _i64span_ Of int64s
-- _f32span_ Of 32-bit floats 
-- _f64span_ Of 64-bit floats
+- *bytespan* Span of contiguous immutable bytes in memory
+- *i32span* Of int32s
+- *i64span* Of int64s
+- *f32span* Of 32-bit floats 
+- *f64span* Of 64-bit floats
 
 
 Code usage example
@@ -148,9 +148,9 @@ allow you to write much faster query code.
 We would create three array stores to model this data, and would separate out
 broadcasts into arrays with - perhaps - one array for each hour of time:
 
-- _int32_t_ "message_timestamps"
-- _byteas_t_ "message_ids"
-- _f64as_t_ - "message_activities"
+- *int32_t* "message_timestamps"
+- *byteas_t* "message_ids"
+- *f64as_t* - "message_activities"
 
 To get the value of a given message identified by a known
 <device_id, timestamp>, the caller must calculate its chunk ID from the
@@ -177,12 +177,12 @@ We'll use a fairly straightforward implementation first, and use arbitrary uint6
 keys for the cells without any particular meaning. This leads to the following
 stores:
 
-- _ui64as_t_ "cell_children" - present if a cell is subdivided. Key is cell id,
+- *ui64as_t* "cell_children" - present if a cell is subdivided. Key is cell id,
   contents is a 4-array of cell ids, being the clockwise children of the cell
-- _f32as_t_ "cell_points_xs" - present for any leaf cell. SOA member for x values
+- *f32as_t* "cell_points_xs" - present for any leaf cell. SOA member for x values
   of all points within that cell
-- _f32as_t_ "cell_points_ys" - as above, but y values
-- _f64as_t_ "cell_points_activities" - as above, but activity level
+- *f32as_t* "cell_points_ys" - as above, but y values
+- *f64as_t* "cell_points_activities" - as above, but activity level
 
 Each subdivided cell as has exactly one entry in the cell_children store, and
 each leaf cell has exacly one entry in each points store. The three fields making
