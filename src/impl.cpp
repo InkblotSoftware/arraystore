@@ -28,6 +28,9 @@ using namespace arraystore;
 
 namespace arraystore {
 
+// A key in an array store
+using Key = uint64_t;
+
 // Better calloc
 template <typename T>
 T* allocate () {
@@ -268,7 +271,7 @@ struct TypedStore {
     ~TypedStore () {}
 
     // -- GET
-    Span<T> get (astxn_t *txn, uint64_t key) {
+    Span<T> get (astxn_t *txn, Key key) {
         assert (txn);
         
         MDB_val mkey = {sizeof (key), &key};
@@ -286,7 +289,7 @@ struct TypedStore {
     }
 
     // -- PUT
-    int put (astxn_t *txn, uint64_t key, Span<T> data) {
+    int put (astxn_t *txn, Key key, Span<T> data) {
         assert (txn);
         assert (data.data || (data.size == 0));
         
@@ -298,7 +301,7 @@ struct TypedStore {
     }
 
     // -- EXISTS
-    bool exists (astxn_t *txn, uint64_t key) {
+    bool exists (astxn_t *txn, Key key) {
         assert (txn);
         
         MDB_val mkey = {sizeof (key), &key};
@@ -311,7 +314,7 @@ struct TypedStore {
     }
 
     // -- DELETE
-    int del (astxn_t *txn, uint64_t key) {
+    int del (astxn_t *txn, Key key) {
         assert (txn);
 
         MDB_val mkey = {sizeof (key), &key};
@@ -355,21 +358,21 @@ extern "C" {
     void i32as_destroy (i32as_t **self_p) {
         destroy (self_p);
     }
-    i32span i32as_get (i32as_t *self, astxn_t *txn, uint64_t key) {
+    i32span i32as_get (i32as_t *self, astxn_t *txn, Key key) {
         assert (self);
         auto sp = self->get (txn, key);
         return i32span {sp.data, sp.size};
     }
-    int i32as_put (i32as_t *self, astxn_t *txn, uint64_t key,
+    int i32as_put (i32as_t *self, astxn_t *txn, Key key,
                    const int32_t *data, size_t size) {
         assert (self);
         return self->put (txn, key, Span<int32_t>{data,size});
     }
-    bool i32as_exists (i32as_t *self, astxn_t *txn, uint64_t key) {
+    bool i32as_exists (i32as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->exists (txn, key);
     }
-    int i32as_delete (i32as_t *self, astxn_t *txn, uint64_t key) {
+    int i32as_delete (i32as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->del (txn, key);
     }
@@ -388,21 +391,21 @@ extern "C" {
     void i64as_destroy (i64as_t **self_p) {
         destroy (self_p);
     }
-    i64span i64as_get (i64as_t *self, astxn_t *txn, uint64_t key) {
+    i64span i64as_get (i64as_t *self, astxn_t *txn, Key key) {
         assert (self);
         auto sp = self->get (txn, key);
         return i64span {sp.data, sp.size};
     }
-    int i64as_put (i64as_t *self, astxn_t *txn, uint64_t key,
+    int i64as_put (i64as_t *self, astxn_t *txn, Key key,
                    const int64_t *data, size_t size) {
         assert (self);
         return self->put (txn, key, Span<int64_t>{data,size});
     }
-    bool i64as_exists (i64as_t *self, astxn_t *txn, uint64_t key) {
+    bool i64as_exists (i64as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->exists (txn, key);
     }
-    int i64as_delete (i64as_t *self, astxn_t *txn, uint64_t key) {
+    int i64as_delete (i64as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->del (txn, key);
     }
@@ -422,21 +425,21 @@ extern "C" {
     void f32as_destroy (f32as_t **self_p) {
         destroy (self_p);
     }
-    f32span f32as_get (f32as_t *self, astxn_t *txn, uint64_t key) {
+    f32span f32as_get (f32as_t *self, astxn_t *txn, Key key) {
         assert (self);
         auto sp = self->get (txn, key);
         return f32span {sp.data, sp.size};
     }
-    int f32as_put (f32as_t *self, astxn_t *txn, uint64_t key,
+    int f32as_put (f32as_t *self, astxn_t *txn, Key key,
                    const float *data, size_t size) {
         assert (self);
         return self->put (txn, key, Span<float>{data,size});
     }
-    bool f32as_exists (f32as_t *self, astxn_t *txn, uint64_t key) {
+    bool f32as_exists (f32as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->exists (txn, key);
     }
-    int f32as_delete (f32as_t *self, astxn_t *txn, uint64_t key) {
+    int f32as_delete (f32as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->del (txn, key);
     }
@@ -456,21 +459,21 @@ extern "C" {
     void f64as_destroy (f64as_t **self_p) {
         destroy (self_p);
     }
-    f64span f64as_get (f64as_t *self, astxn_t *txn, uint64_t key) {
+    f64span f64as_get (f64as_t *self, astxn_t *txn, Key key) {
         assert (self);
         auto sp = self->get (txn, key);
         return f64span {sp.data, sp.size};
     }
-    int f64as_put (f64as_t *self, astxn_t *txn, uint64_t key,
+    int f64as_put (f64as_t *self, astxn_t *txn, Key key,
                    const double *data, size_t size) {
         assert (self);
         return self->put (txn, key, Span<double>{data,size});
     }
-    bool f64as_exists (f64as_t *self, astxn_t *txn, uint64_t key) {
+    bool f64as_exists (f64as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->exists (txn, key);
     }
-    int f64as_delete (f64as_t *self, astxn_t *txn, uint64_t key) {
+    int f64as_delete (f64as_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->del (txn, key);
     }
@@ -489,22 +492,24 @@ extern "C" {
     void byteas_destroy (byteas_t **self_p) {
         destroy (self_p);
     }
-    bytespan byteas_get (byteas_t *self, astxn_t *txn, uint64_t key) {
+    bytespan byteas_get (byteas_t *self, astxn_t *txn, Key key) {
         assert (self);
         auto sp = self->get (txn, key);
         return bytespan {sp.data, sp.size};
     }
-    int byteas_put (byteas_t *self, astxn_t *txn, uint64_t key,
+    int byteas_put (byteas_t *self, astxn_t *txn, Key key,
                     const unsigned char *data, size_t size) {
         assert (self);
         return self->put (txn, key, Span<unsigned char>{data,size});
     }
-    bool byteas_exists (byteas_t *self, astxn_t *txn, uint64_t key) {
+    bool byteas_exists (byteas_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->exists (txn, key);
     }
-    int byteas_delete (byteas_t *self, astxn_t *txn, uint64_t key) {
+    int byteas_delete (byteas_t *self, astxn_t *txn, Key key) {
         assert (self);
         return self->del (txn, key);
     }
 }
+
+
