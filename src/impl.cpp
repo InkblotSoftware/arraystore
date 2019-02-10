@@ -349,9 +349,10 @@ struct TypedStore {
 
 // For creating i32as's etc, which wrap a TypedStore
 template <typename Container, typename Elem,
-          class = std::enable_if<
+          class = typename std::enable_if<
                       std::is_base_of<TypedStore<Elem>, Container>::value
-                  >>
+                  >::type
+          >
 Container * makeTypedStoreContainer (asenv_t *env, const char *name) {
     Container *res = allocate<Container> ();
     int rc = res->open (env, name);
@@ -548,6 +549,10 @@ namespace arraystore {
 
 template <typename Store>
 struct TypedStoreIter {
+    static_assert (std::is_base_of< TypedStore<typename Store::value_type>,
+                                    Store >::value,
+                   "Can only wrap TypedStore's, of same element type.");
+
     using store_type = Store;
     using value_type = typename Store::value_type;
     
@@ -640,7 +645,14 @@ private:
 };
 
 // For creating i32asiter's etc, which wrap a TypedStoreIter
-template <typename Container, class Store = typename Container::store_type>
+template <typename Container,
+          class Store = typename Container::store_type,
+          class Value = typename Container::value_type,
+          class = typename std::enable_if<
+                      std::is_base_of< TypedStoreIter<TypedStore<Value>>,
+                                       Container >::value
+                  >::type
+          >
 Container * makeIterContainer (Store *store, astxn_t *txn) {
     Container *res = allocate<Container> ();
     int rc = res->open (store, txn);
