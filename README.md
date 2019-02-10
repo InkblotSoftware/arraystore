@@ -28,7 +28,7 @@ far exceeds working RAM capacity.
 More formally:
 
 - Each database contains one or more named array stores, with per-store
-  element type T taken from {i32, ui32, i64, ui64, f32, f64, byte}
+  element type T taken from {i32, i64, f32, f64, byte}
 - Each database is a set of <uint64 (key), T[] (value)> pairs
 - Pairs are ordered with key ascending, for the purposes of sequential
   traversal
