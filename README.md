@@ -35,6 +35,34 @@ More formally:
 - Pairs can be modified using traditional ACID transactions
 
 
+Iteration and iterators
+-----------------------
+
+Many use cases can be handled with the store APIs directly, but if you don't
+know what a store contains if or you want maximum traversal performance you'll
+want to use an iterator. These take advantage of LMDB's B+ tree based design
+to reduce most sequential store element accesses to one CPU cache miss, plus
+a page fault if the data is cold and not in the OS cache.
+
+Each store type has a corresponding iterator type, which can be created from
+the corresponding store, and lets you move up and down the ascending-key-order
+set of contained elements. Iterators, unsurprisingly, must not outlive the
+transaction used to create them.
+
+After constructing an iterator call _upfrom(key) to start start iterating
+from that key, using _next() and _prev() to move around. Each function returns
+a bool telling you whether it successfully moved to new data, or that there
+was no new element to visit so it stayed at the same place. Use _upfrom(0) to
+traverse the whole store.
+
+An iterator's current element can be accessed using _key() and _array(). Note
+that until it's successfully visited at least one element - which won't happen
+if the store is empty, or you start too far up and never call _prev() - the
+iterator remains in an 'invalid' state, and you MUST NOT call _key() or _array().
+If you think you might misuse the return upfrom/next/prev return values and get
+this wrong, you can call _valid() in an assert to make sure.
+
+
 Building and installation
 -------------------------
 
@@ -69,7 +97,12 @@ Reference-based classes (based on standard C types):
 - **i32as_t** - Of int32 arrays
 - **i64as_t** - Of int64 arrays
 - **f32as_t** - Of 32-bit float arrays
-- **f64as_t** - Of 32-bit float arrays
+- **f64as_t** - Of 64-bit float arrays
+- **byteasiter_t** - Iterator across byte array store
+- **i32asiter_t** - Across int32 array store
+- **i64asiter_t** - Across int64 array store
+- **f32asiter_t** - Across 32-bit float array store
+- **f64asiter_t** - Across 64-bit float array store
 
 Value types (based on standard C types):
 
@@ -97,7 +130,8 @@ assert (store);   // NULL on error
 // Array store keys are all uint64s
 uint64_t my_key = 98989;
 
-{  // Write some data
+// Write some data
+{
     astxn_t *txn = astxn_new_rdrw (env);
     assert (txn);   // NULL on error
     
@@ -111,7 +145,8 @@ uint64_t my_key = 98989;
     astxn_destroy (&txn);   // dtrs are idempotent
 }
 
-{  // Read it back
+// Read it back
+{
     astxn_t *txn = astxn_new_rdonly (env);
     assert (txn);
     
@@ -120,6 +155,28 @@ uint64_t my_key = 98989;
     assert (sp.size == 3);
     assert (sp.data[2] == 3);
     
+    astxn_destroy (&txn);
+}
+
+// Traverse the store via an iterator
+{
+    astxn_t *txn = astxn_new_rdonly (env);
+    assert (txn);
+
+    // NB iterator must not outlive transaction
+    i32asiter_t *iter = i32asiter_new (store, txn);
+    assert (iter);
+    
+    // Traverse all entries in the store
+    bool some = i32asiter_upfrom (iter, 0);
+    while (some) {
+        assert (i32asiter_key (iter) == my_key);
+        assert (i32asiter_array(iter).size == 3);
+        assert (i32asiter_array(iter).data[2] == 3);
+        some = i32asiter_next (iter);  // try to move to next entry
+    }
+
+    i32asiter_destroy (&iter);
     astxn_destroy (&txn);
 }
 
@@ -211,7 +268,8 @@ object, only call `asenv_xxx()` functions on it from the thread that created it.
 
 Transactions (`astxn_t`) can be created on any thread, but afterwards may only be
 used by the thread that created them. In practice this covers all the `astxn_xxx()`
-functions and any function taking a transaction as a parameter.
+functions, all the xxxiter_yyy() iterator functions, and any function taking a
+transaction as a parameter.
 
 Data spans returned on a `xxx_get()` call remain valid for as long as the
 transaction used to perform the get is not closed. After this time the span's

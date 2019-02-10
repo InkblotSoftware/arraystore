@@ -7,14 +7,18 @@
 // their members, and then destroyed with destroy<T>() which calls the dtr
 // and frees. Basically this is our new/delete.
 
+// TODO split class groups out into separate files
+
 #include <arraystore.h>
 #include <lmdb.h>
 
 #include <cassert>
 #include <cerrno>
 #include <cstdlib>
+#include <cstring>
 
 #include <cstdio>
+
 #include <type_traits>
 #include <utility>
 
@@ -23,8 +27,12 @@ namespace arraystore {}
 using namespace arraystore;
 
 
-//  ======================================================================
-//  == Utils
+
+/*
+ *  ************************************************************
+ *  **********  UTILS  *****************************************
+ *  ************************************************************
+ */
 
 namespace arraystore {
 
@@ -51,8 +59,31 @@ void destroy (T **self_p) {
     }
 }
 
+// Internal span type
+template <typename T>
+struct Span {
+    const T     *data = nullptr;
+    const size_t size = 0;
+
+    explicit Span (const T *dd, size_t ss) :data{dd}, size{ss} {}
+    explicit Span () =default;
+};
+
+// Does the given pointer have valid alignment to store T there?
+template <typename T>
+bool is_aligned (const void *ptr) {
+    auto ip = reinterpret_cast<uintptr_t> (ptr);
+    return ip % alignof(T) == 0;
+}
+
 }  // namespace arraystore
-    
+
+
+/*
+ *  ************************************************************
+ *  **********  CROSS-LIBRARY CLASSES  *************************
+ *  ************************************************************
+ */
 
 //  ======================================================================
 //  == asenv_t
@@ -204,24 +235,14 @@ extern "C" {
     }
 }
 
-    
-//  ======================================================================
-//  == Internal span type
 
-namespace arraystore {
 
-template <typename T>
-struct Span {
-    const T     *data = nullptr;
-    const size_t size = 0;
+/*
+ *  ************************************************************
+ *  **********  ARRAY STORES  **********************************
+ *  ************************************************************
+ */
 
-    Span (const T *dd, size_t ss) :data{dd}, size{ss} {}
-    Span () =default;
-};
-
-}
-        
-        
 //  ======================================================================
 //  == Generic typed store of arrays, used as a mixin for user-visible types
 //  ==   Since all keys are 8 bytes, vals requiring 2 and 4 byte alignment
@@ -233,8 +254,8 @@ namespace arraystore {
 template <typename T>
 struct TypedStore {
     // Member vars
-    MDB_dbi _handle = 0;
-    bool _opened = false;
+    MDB_dbi _handle;
+    bool _opened;
 
     using value_type = T;
 
@@ -252,7 +273,8 @@ struct TypedStore {
         astxn_t *txn = astxn_new_rdrw (env);
         if (!txn) goto die;
 
-        rc = mdb_dbi_open (txn->handle, name, MDB_CREATE, &_handle);
+        rc = mdb_dbi_open (txn->handle, name, MDB_CREATE | MDB_INTEGERKEY,
+                           &_handle);
         if (rc) goto die;
 
         rc = astxn_commit (txn);
@@ -280,6 +302,9 @@ struct TypedStore {
         int rc = mdb_get (txn->handle, _handle, &mkey, &mval);
         if (rc) goto die;
         if (mval.mv_size % sizeof(value_type) != 0) goto die;
+
+        // TODO consider whether to assert or return sentinel here
+        assert (is_aligned<T> (mval.mv_data));
 
         return Span<T> {static_cast<const T *>(mval.mv_data),
                         mval.mv_size / sizeof(T)};
@@ -513,3 +538,328 @@ extern "C" {
 }
 
 
+
+/*
+ *  ************************************************************
+ *  **********  ITERATORS  *************************************
+ *  ************************************************************
+ */
+
+//  ======================================================================
+//  == Generic iterator class for array stores
+//  ==    You MUST create these via calloc or similar, zeroing out memory
+
+namespace arraystore {
+
+template <typename Store>
+struct TypedStoreIter {
+    using store_type = Store;
+    using value_type = typename Store::value_type;
+    
+    // Member vars
+    MDB_cursor *_handle;
+    Store      *_store;
+    MDB_val     _mkey;
+    MDB_val     _mval;  // points to null iff iterator invalid
+
+    // -- For mixin use
+    TypedStoreIter * asTypedStoreIter () { return this; }
+
+    // -- Set up the iter to look at the given store. Call once before iter use.
+    int open (Store *store, astxn_t *txn) {
+        assert (! _handle);
+        assert (store);
+        assert (txn);
+
+        int rc = mdb_cursor_open (txn->handle, store->_handle, &_handle);
+        return rc;
+    }
+    
+    // -- Start the iterator's traversal, from or above the provided key
+    bool upfrom (Key fromKey) {
+        _mkey.mv_data = &fromKey;
+        _mkey.mv_size = sizeof (fromKey);
+        int rc = mdb_cursor_get (_handle, &_mkey, &_mval, MDB_SET_RANGE);
+
+        assert (rc == 0 || rc == MDB_NOTFOUND);
+
+        // Mark self as invalid if we haven't got data
+        if (rc) setInvalid ();
+
+        return (rc == 0);
+    }
+        
+    // -- Dtr
+    ~TypedStoreIter () {
+        if (_handle) {
+            mdb_cursor_close (_handle);
+            _handle = nullptr;
+        }
+    }
+
+    bool valid () { return _mval.mv_data != nullptr; }
+
+    // -- Get key and value out of well-positioned iterator
+
+    Key key () {
+        assert (valid ());
+        
+        // Check key size is right
+        // TODO consider whether we should assert here or return sentinel
+        assert (_mkey.mv_size == sizeof(Key));
+        
+        // Our keys are not guaranteed 8-byte aligned in the db
+        Key res = 0;
+        memcpy (&res, _mkey.mv_data, sizeof(Key));
+        return res;
+    }
+    
+    Span<value_type> array () {
+        assert (valid ());
+        
+        // Check array byte size is valid for given value type
+        // TODO consider whether we should assert here or return sentinel
+        assert (_mval.mv_size % sizeof(value_type) == 0);
+
+        return Span<value_type> {
+            reinterpret_cast<const value_type *> (_mval.mv_data),
+            _mval.mv_size / sizeof(value_type)
+        };
+    }
+
+    // -- Moving the cursor; returns true iff found entry
+    
+    bool next () {
+        int rc = mdb_cursor_get (_handle, &_mkey, &_mval, MDB_NEXT);
+        assert (rc == 0 || rc == MDB_NOTFOUND);
+        return (rc == 0);
+    }
+    bool prev () {
+        int rc = mdb_cursor_get (_handle, &_mkey, &_mval, MDB_PREV);
+        assert (rc == 0 || rc == MDB_NOTFOUND);
+        return (rc == 0);
+    }
+
+private:
+    void setInvalid () {
+        _mval.mv_data = nullptr;
+        _mval.mv_size = 0;
+    }
+};
+
+// For creating i32asiter's etc, which wrap a TypedStoreIter
+template <typename Container, class Store = typename Container::store_type>
+Container * makeIterContainer (Store *store, astxn_t *txn) {
+    Container *res = allocate<Container> ();
+    int rc = res->asTypedStoreIter()->open (store, txn);
+    if (rc) goto die;
+
+    return res;
+ die:
+    destroy (&res);
+    errno = rc;
+    return nullptr;
+}
+
+}  // namespace arraystore
+
+
+//  ======================================================================
+//  == Specific iterator class implementations
+
+//  ----------------------------------------------------------------------
+//  i32asiter_t
+
+struct i32asiter_t : TypedStoreIter<TypedStore<int32_t>> {};
+
+extern "C" {
+    i32asiter_t * i32asiter_new (i32as_t *store, astxn_t *txn) {
+        return makeIterContainer <i32asiter_t> (store, txn);
+    }
+    void i32asiter_destroy (i32asiter_t **self_p) {
+        destroy (self_p);
+    }
+    bool i32asiter_upfrom (i32asiter_t *self, uint64_t key) {
+        assert (self);
+        return self->asTypedStoreIter()->upfrom (key);
+    }
+    bool i32asiter_valid (i32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->valid ();
+    }
+    uint64_t i32asiter_key (i32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->key ();
+    }
+    i32span i32asiter_array (i32asiter_t *self) {
+        assert (self);
+        Span<int32_t> dats = self->asTypedStoreIter()->array ();
+        return i32span {dats.data, dats.size};
+    }
+    bool i32asiter_next (i32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->next ();
+    }
+    bool i32asiter_prev (i32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->prev ();
+    }
+}
+
+//  ----------------------------------------------------------------------
+//  i64asiter_t
+
+struct i64asiter_t : TypedStoreIter<TypedStore<int64_t>> {};
+
+extern "C" {
+    i64asiter_t * i64asiter_new (i64as_t *store, astxn_t  *txn) {
+        return makeIterContainer <i64asiter_t> (store, txn);
+    }
+    void i64asiter_destroy (i64asiter_t **self_p) {
+        destroy (self_p);
+    }
+    bool i64asiter_upfrom (i64asiter_t *self, uint64_t key) {
+        assert (self);
+        return self->asTypedStoreIter()->upfrom (key);
+    }
+    bool i64asiter_valid (i64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->valid ();
+    }
+    uint64_t i64asiter_key (i64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->key ();
+    }
+    i64span i64asiter_array (i64asiter_t *self) {
+        assert (self);
+        Span<int64_t> dats = self->asTypedStoreIter()->array ();
+        return i64span {dats.data, dats.size};
+    }
+    bool i64asiter_next (i64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->next ();
+    }
+    bool i64asiter_prev (i64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->prev ();
+    }
+}
+
+//  ----------------------------------------------------------------------
+//  i32asiter_t
+
+struct f32asiter_t : TypedStoreIter<TypedStore<float>> {};
+static_assert (sizeof (float) == sizeof (int32_t), "");
+
+extern "C" {
+    f32asiter_t * f32asiter_new (f32as_t *store, astxn_t *txn) {
+        return makeIterContainer <f32asiter_t> (store, txn);
+    }
+    void f32asiter_destroy (f32asiter_t **self_p) {
+        destroy (self_p);
+    }
+    bool f32asiter_upfrom (f32asiter_t *self, uint64_t key) {
+        assert (self);
+        return self->asTypedStoreIter()->upfrom (key);
+    }
+    bool f32asiter_valid (f32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->valid ();
+    }
+    uint64_t f32asiter_key (f32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->key ();
+    }
+    f32span f32asiter_array (f32asiter_t *self) {
+        assert (self);
+        Span<float> dats = self->asTypedStoreIter()->array ();
+        return f32span {dats.data, dats.size};
+    }
+    bool f32asiter_next (f32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->next ();
+    }
+    bool f32asiter_prev (f32asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->prev ();
+    }
+}
+
+//  ----------------------------------------------------------------------
+//  i64asiter_t
+
+struct f64asiter_t : TypedStoreIter<TypedStore<double>> {};
+static_assert (sizeof (double) == sizeof (int64_t), "");
+
+extern "C" {
+    f64asiter_t * f64asiter_new (f64as_t *store, astxn_t *txn) {
+        return makeIterContainer <f64asiter_t> (store, txn);
+    }
+    void f64asiter_destroy (f64asiter_t **self_p) {
+        destroy (self_p);
+    }
+    bool f64asiter_upfrom (f64asiter_t *self, uint64_t key) {
+        assert (self);
+        return self->asTypedStoreIter()->upfrom (key);
+    }
+    bool f64asiter_valid (f64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->valid ();
+    }
+    uint64_t f64asiter_key (f64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->key ();
+    }
+    f64span f64asiter_array (f64asiter_t *self) {
+        assert (self);
+        Span<double> dats = self->asTypedStoreIter()->array ();
+        return f64span {dats.data, dats.size};
+    }
+    bool f64asiter_next (f64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->next ();
+    }
+    bool f64asiter_prev (f64asiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->prev ();
+    }
+}
+
+//  ----------------------------------------------------------------------
+//  byteasiter_t
+
+struct byteasiter_t : TypedStoreIter<TypedStore<unsigned char>> {};
+
+extern "C" {
+    byteasiter_t * byteasiter_new (byteas_t *store, astxn_t *txn) {
+        return makeIterContainer <byteasiter_t> (store, txn);
+    }
+    void byteasiter_destroy (byteasiter_t **self_p) {
+        destroy (self_p);
+    }
+    bool byteasiter_upfrom (byteasiter_t *self, uint64_t key) {
+        assert (self);
+        return self->asTypedStoreIter()->upfrom (key);
+    }
+    bool byteasiter_valid (byteasiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->valid ();
+    }
+    uint64_t byteasiter_key (byteasiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->key ();
+    }
+    bytespan byteasiter_array (byteasiter_t *self) {
+        assert (self);
+        Span<unsigned char> dats = self->asTypedStoreIter()->array ();
+        return bytespan {dats.data, dats.size};
+    }
+    bool byteasiter_next (byteasiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->next ();
+    }
+    bool byteasiter_prev (byteasiter_t *self) {
+        assert (self);
+        return self->asTypedStoreIter()->prev ();
+    }
+}

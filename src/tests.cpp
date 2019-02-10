@@ -92,24 +92,121 @@ auto storeFuns_byte = StoreFuns <byteas_t, unsigned char, bytespan> {
 
 
 //  ----------------------------------------------------------------------
+//  Similar holder for per-iterator functions
+
+template <typename Iter, typename Store, typename Elem, typename Span>
+struct IterFuns {
+
+    std::function <Iter* (Store *store, astxn_t *txn)> ctr;
+
+    std::function <void (Iter**)> dtr;
+
+    std::function <bool (Iter*, uint64_t key)> upfrom;
+    
+    std::function <bool (Iter*)> valid;
+
+    std::function <uint64_t (Iter*)> key;
+
+    std::function <Span (Iter*)> array;
+
+    std::function <bool (Iter*)> next;
+
+    std::function <bool (Iter*)> prev;
+
+    using iter_type = Iter;
+    using store_type = Store;
+};
+    
+
+//  ----------------------------------------------------------------------
+//  Funs for all the iterator classes we have
+
+auto iterFuns_i32 = IterFuns <i32asiter_t, i32as_t, int32_t, i32span> {
+    i32asiter_new,
+    i32asiter_destroy,
+    i32asiter_upfrom,
+    i32asiter_valid,
+    i32asiter_key,
+    i32asiter_array,
+    i32asiter_next,
+    i32asiter_prev
+};
+
+auto iterFuns_i64 = IterFuns <i64asiter_t, i64as_t, int64_t, i64span> {
+    i64asiter_new,
+    i64asiter_destroy,
+    i64asiter_upfrom,
+    i64asiter_valid,
+    i64asiter_key,
+    i64asiter_array,
+    i64asiter_next,
+    i64asiter_prev
+};
+
+auto iterFuns_f32 = IterFuns <f32asiter_t, f32as_t, float, f32span> {
+    f32asiter_new,
+    f32asiter_destroy,
+    f32asiter_upfrom,
+    f32asiter_valid,
+    f32asiter_key,
+    f32asiter_array,
+    f32asiter_next,
+    f32asiter_prev
+};
+
+auto iterFuns_f64 = IterFuns <f64asiter_t, f64as_t, double, f64span> {
+    f64asiter_new,
+    f64asiter_destroy,
+    f64asiter_upfrom,
+    f64asiter_valid,
+    f64asiter_key,
+    f64asiter_array,
+    f64asiter_next,
+    f64asiter_prev
+};
+
+auto iterFuns_byte = IterFuns <byteasiter_t, byteas_t, unsigned char, bytespan> {
+    byteasiter_new,
+    byteasiter_destroy,
+    byteasiter_upfrom,
+    byteasiter_valid,
+    byteasiter_key,
+    byteasiter_array,
+    byteasiter_next,
+    byteasiter_prev
+};
+
+
+
+//  ----------------------------------------------------------------------
 //  Running tests on one array store
 
-// TODO constrain SF
-template <typename SF>
+// TODO constrain SF and IF
+template <typename SF, typename IF>
 void testArrayStore (asenv_t *env,
                      SF storeFuns,
+                     IF iterFuns,
                      const char *name,
                      std::vector<typename SF::value_type> data) {
+    static_assert (std::is_same<typename SF::store_type,
+                                typename IF::store_type
+                   >::value,
+                   "StoreFuns and IterFuns must refer to samae store type");
+    
     using Store = typename SF::store_type;
     using Span  = typename SF::span_type;
-
-    printf (" * Testing store %s...", name);
+    using Iter  = typename IF::iter_type;
+    
+    printf (" * Testing store/iter %s...", name);
     fflush (stdout);
     
     Store *store = storeFuns.ctr (env, name);
     enforce (store);
 
-    // Write some data
+    
+    //  ------------------------------------------------------------
+    //  Write some data
+    
     {
         astxn_t *txn = astxn_new_rdrw (env);
         enforce (txn);
@@ -146,7 +243,10 @@ void testArrayStore (asenv_t *env,
         astxn_destroy (&txn);
     }
 
-    // Read it back in another txn
+
+    //  ------------------------------------------------------------
+    //  Read it back in another txn
+    
     {
         astxn_t *txn = astxn_new_rdonly (env);
         enforce (txn);
@@ -177,6 +277,142 @@ void testArrayStore (asenv_t *env,
         astxn_destroy (&txn);
     }
 
+    
+    //  ------------------------------------------------------------
+    //  Traverse the store entries via an iterator
+    
+    {
+        astxn_t *txn = astxn_new_rdonly (env);
+        enforce (txn);
+
+        // First a quick test of an iter that starts past all the entries
+        {
+            Iter *iter = iterFuns.ctr (store, txn);
+            enforce (iter);
+
+            bool ok = iterFuns.upfrom (iter, 99999);
+            enforce (! ok);
+            enforce (! iterFuns.valid (iter));
+
+            // Nothing more to find by going forwards
+            ok = iterFuns.next (iter);
+            enforce (! ok);
+            enforce (! iterFuns.valid (iter));
+
+            // Going back we find the last elem
+            ok = iterFuns.prev (iter);
+            enforce (ok);
+            enforce (iterFuns.valid (iter));
+            enforce (iterFuns.key (iter) == 444);
+            enforce (iterFuns.array(iter).size == 0);
+            
+            iterFuns.dtr (&iter);
+        }
+
+        // And check the standard while loop form we use works
+        {
+            Iter *iter = iterFuns.ctr (store, txn);
+            enforce (iter);
+
+            int count = 0;
+            // Cover all but the first entry
+            bool some = iterFuns.upfrom (iter, 150);
+            while (some) {
+                ++count;
+                some = iterFuns.next (iter);
+            }
+            
+            enforce (count == 2);
+            iterFuns.dtr (&iter);
+        }
+
+        // Now the main tests proper
+        
+        Iter *iter = iterFuns.ctr (store, txn);
+        enforce (iter);
+
+        // Start at first entry in the store (111)
+
+        bool ok = iterFuns.upfrom (iter, 0);
+        enforce (ok);
+        enforce (iterFuns.valid (iter));
+
+        enforce (iterFuns.key (iter) == 111);
+        enforce (iterFuns.array(iter).size == data.size());
+        enforce (iterFuns.array(iter).data[0] == data.at(0));
+
+        // Then move to next entry (333)
+
+        ok = iterFuns.next (iter);
+        enforce (ok);
+        enforce (iterFuns.valid (iter));
+
+        enforce (iterFuns.key (iter) == 333);
+        enforce (iterFuns.array(iter).size == 0);
+
+        // Then move to the last
+
+        ok = iterFuns.next (iter);
+        enforce (ok);
+        enforce (iterFuns.valid (iter));
+        enforce (iterFuns.key (iter) == 444);
+        enforce (iterFuns.array(iter).size == 0);
+
+        // Try to run off the end, but doesn't move us
+
+        ok = iterFuns.next (iter);
+        enforce (! ok);
+        enforce (iterFuns.valid (iter));  // we haven't moved
+
+        // Going further when we're at the end shouldn't change anything
+
+        ok = iterFuns.next (iter);
+        enforce (! ok);
+        enforce (iterFuns.valid (iter));  // still haven't moved
+
+        // Check we're still at the last entry
+
+        enforce (iterFuns.key (iter) == 444);
+        enforce (iterFuns.array (iter) .size == 0);
+
+        // Now back up along the others
+
+        ok = iterFuns.prev (iter);
+        enforce (ok);
+        enforce (iterFuns.valid (iter));
+        enforce (iterFuns.key (iter) == 333);
+        enforce (iterFuns.array (iter) .size == 0);
+
+        ok = iterFuns.prev (iter);
+        enforce (ok);
+        enforce (iterFuns.valid (iter));
+        enforce (iterFuns.key (iter) == 111);
+        enforce (iterFuns.array (iter) .size == data.size());
+        enforce (iterFuns.array (iter) .data [0] == data.at(0));
+
+        // Try to run off the beginning
+
+        ok = iterFuns.prev (iter);
+        enforce (! ok);
+        enforce (iterFuns.valid (iter));  // haven't moved
+
+        // Going back again now shouldn't change anything
+
+        ok = iterFuns.prev (iter);
+        enforce (! ok);
+        enforce (iterFuns.valid (iter));  // still haven't moved
+
+        // And check we're still on the same item
+
+        enforce (iterFuns.key (iter) == 111);
+        enforce (iterFuns.array (iter) .size == data.size());
+
+        // Clean up
+
+        iterFuns.dtr (&iter);
+        astxn_destroy (&txn);
+    }
+
     storeFuns.dtr (&store);
 
     printf (" OK\n");
@@ -196,11 +432,20 @@ int main (int argc, char **argv) {
 
     puts ("");
     
-    testArrayStore (env, storeFuns_i32,  "test_i32",  {10, 11, 12, 13});
-    testArrayStore (env, storeFuns_i64,  "test_i64",  {10, 11, 12, 13});
-    testArrayStore (env, storeFuns_f32,  "test_f32",  {10.1, 11.1, 12.1, 13.1});
-    testArrayStore (env, storeFuns_f64,  "test_f64",  {10.1, 11.1, 12.1, 13.1});
-    testArrayStore (env, storeFuns_byte, "test_byte", {'a', 'b', 'c'});
+    testArrayStore (env, storeFuns_i32, iterFuns_i32,
+                    "test_i32", {10, 11, 12, 13});
+    
+    testArrayStore (env, storeFuns_i64, iterFuns_i64,
+                    "test_i64", {10, 11, 12, 13});
+    
+    testArrayStore (env, storeFuns_f32, iterFuns_f32,
+                    "test_f32", {10.1, 11.1, 12.1, 13.1});
+
+    testArrayStore (env, storeFuns_f64, iterFuns_f64,
+                    "test_f64", {10.1, 11.1, 12.1, 13.1});
+
+    testArrayStore (env, storeFuns_byte, iterFuns_byte,
+                    "test_byte", {'a', 'b', 'c'});
 
     asenv_destroy (&env);
 
