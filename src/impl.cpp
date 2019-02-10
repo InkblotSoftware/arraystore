@@ -259,9 +259,6 @@ struct TypedStore {
 
     using value_type = T;
 
-    // For use in mixins
-    TypedStore *asTypedStore () { return this; }
-
     // Only use this once, just after object init
     int open (asenv_t *env, const char *name) {
         assert (env);
@@ -351,15 +348,13 @@ struct TypedStore {
 };
 
 // For creating i32as's etc, which wrap a TypedStore
-template <typename Container, typename Elem>
+template <typename Container, typename Elem,
+          class = std::enable_if<
+                      std::is_base_of<TypedStore<Elem>, Container>::value
+                  >>
 Container * makeTypedStoreContainer (asenv_t *env, const char *name) {
-    static_assert (std::is_same<
-                       decltype(std::declval<Container>().asTypedStore()),
-                       typename std::add_pointer<TypedStore<Elem>>::type
-                   >::value,
-                   "Can only construct TypedStore-holding types here");
     Container *res = allocate<Container> ();
-    int rc = res->asTypedStore()->open (env, name);
+    int rc = res->open (env, name);
     if (rc) goto die;
 
     return res;
@@ -562,9 +557,6 @@ struct TypedStoreIter {
     MDB_val     _mkey;
     MDB_val     _mval;  // points to null iff iterator invalid
 
-    // -- For mixin use
-    TypedStoreIter * asTypedStoreIter () { return this; }
-
     // -- Set up the iter to look at the given store. Call once before iter use.
     int open (Store *store, astxn_t *txn) {
         assert (! _handle);
@@ -651,7 +643,7 @@ private:
 template <typename Container, class Store = typename Container::store_type>
 Container * makeIterContainer (Store *store, astxn_t *txn) {
     Container *res = allocate<Container> ();
-    int rc = res->asTypedStoreIter()->open (store, txn);
+    int rc = res->open (store, txn);
     if (rc) goto die;
 
     return res;
@@ -681,28 +673,28 @@ extern "C" {
     }
     bool i32asiter_upfrom (i32asiter_t *self, uint64_t key) {
         assert (self);
-        return self->asTypedStoreIter()->upfrom (key);
+        return self->upfrom (key);
     }
     bool i32asiter_valid (i32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->valid ();
+        return self->valid ();
     }
     uint64_t i32asiter_key (i32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->key ();
+        return self->key ();
     }
     i32span i32asiter_array (i32asiter_t *self) {
         assert (self);
-        Span<int32_t> dats = self->asTypedStoreIter()->array ();
+        Span<int32_t> dats = self->array ();
         return i32span {dats.data, dats.size};
     }
     bool i32asiter_next (i32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->next ();
+        return self->next ();
     }
     bool i32asiter_prev (i32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->prev ();
+        return self->prev ();
     }
 }
 
@@ -720,28 +712,28 @@ extern "C" {
     }
     bool i64asiter_upfrom (i64asiter_t *self, uint64_t key) {
         assert (self);
-        return self->asTypedStoreIter()->upfrom (key);
+        return self->upfrom (key);
     }
     bool i64asiter_valid (i64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->valid ();
+        return self->valid ();
     }
     uint64_t i64asiter_key (i64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->key ();
+        return self->key ();
     }
     i64span i64asiter_array (i64asiter_t *self) {
         assert (self);
-        Span<int64_t> dats = self->asTypedStoreIter()->array ();
+        Span<int64_t> dats = self->array ();
         return i64span {dats.data, dats.size};
     }
     bool i64asiter_next (i64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->next ();
+        return self->next ();
     }
     bool i64asiter_prev (i64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->prev ();
+        return self->prev ();
     }
 }
 
@@ -760,28 +752,28 @@ extern "C" {
     }
     bool f32asiter_upfrom (f32asiter_t *self, uint64_t key) {
         assert (self);
-        return self->asTypedStoreIter()->upfrom (key);
+        return self->upfrom (key);
     }
     bool f32asiter_valid (f32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->valid ();
+        return self->valid ();
     }
     uint64_t f32asiter_key (f32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->key ();
+        return self->key ();
     }
     f32span f32asiter_array (f32asiter_t *self) {
         assert (self);
-        Span<float> dats = self->asTypedStoreIter()->array ();
+        Span<float> dats = self->array ();
         return f32span {dats.data, dats.size};
     }
     bool f32asiter_next (f32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->next ();
+        return self->next ();
     }
     bool f32asiter_prev (f32asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->prev ();
+        return self->prev ();
     }
 }
 
@@ -800,28 +792,28 @@ extern "C" {
     }
     bool f64asiter_upfrom (f64asiter_t *self, uint64_t key) {
         assert (self);
-        return self->asTypedStoreIter()->upfrom (key);
+        return self->upfrom (key);
     }
     bool f64asiter_valid (f64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->valid ();
+        return self->valid ();
     }
     uint64_t f64asiter_key (f64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->key ();
+        return self->key ();
     }
     f64span f64asiter_array (f64asiter_t *self) {
         assert (self);
-        Span<double> dats = self->asTypedStoreIter()->array ();
+        Span<double> dats = self->array ();
         return f64span {dats.data, dats.size};
     }
     bool f64asiter_next (f64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->next ();
+        return self->next ();
     }
     bool f64asiter_prev (f64asiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->prev ();
+        return self->prev ();
     }
 }
 
@@ -839,27 +831,27 @@ extern "C" {
     }
     bool byteasiter_upfrom (byteasiter_t *self, uint64_t key) {
         assert (self);
-        return self->asTypedStoreIter()->upfrom (key);
+        return self->upfrom (key);
     }
     bool byteasiter_valid (byteasiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->valid ();
+        return self->valid ();
     }
     uint64_t byteasiter_key (byteasiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->key ();
+        return self->key ();
     }
     bytespan byteasiter_array (byteasiter_t *self) {
         assert (self);
-        Span<unsigned char> dats = self->asTypedStoreIter()->array ();
+        Span<unsigned char> dats = self->array ();
         return bytespan {dats.data, dats.size};
     }
     bool byteasiter_next (byteasiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->next ();
+        return self->next ();
     }
     bool byteasiter_prev (byteasiter_t *self) {
         assert (self);
-        return self->asTypedStoreIter()->prev ();
+        return self->prev ();
     }
 }
