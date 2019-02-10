@@ -32,11 +32,13 @@ endif ()
 set (SRC_CORE src/impl.cpp)
 set (SRC_TEST src/tests.cpp)
 
-### TODO add similar MSVC warning flags
+### More warnings, and avoid cpp runtime dependency
+### TODO add similar MSVC flags
 if (   "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"
     OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   set_source_files_properties (${SRC_CORE} ${SRC_TEST}
-    PROPERTIES COMPILE_FLAGS "-Werror -Wall -Wextra -pedantic")
+    PROPERTIES COMPILE_FLAGS
+        "-Werror -Wall -Wextra -pedantic -fno-rtti -fno-exceptions")
 endif ()
 
 
@@ -55,14 +57,6 @@ target_link_libraries (arraystore
 set_target_properties (arraystore
   PROPERTIES PUBLIC_HEADER include/arraystore.h
              POSITION_INDEPENDENT_CODE ON)
-
-### Avoid cpp runtime dependency
-### TODO find out the equivalent for msvc
-if (   "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"
-    OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  set_target_properties (arraystore
-    PROPERTIES COMPILE_FLAGS "-fno-rtti -fno-exceptions")
-endif ()
 
            
 ##  ----------------------------------------------------------------------
