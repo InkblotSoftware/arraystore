@@ -73,7 +73,7 @@ If you want to do a one-off build, and optionally a system-wide installation,
 the following will succeed:
 
 ```sh
-git clone https://github.com/InkblotSoftware/arraystore
+git clone --recurse-submodules https://github.com/InkblotSoftware/arraystore
 cd arraystore
 mkdir build && cd build
 ## Add "-DBUILD_SHARED_LIBS=ON" to build a .so rather than an .a
