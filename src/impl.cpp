@@ -76,6 +76,12 @@ bool is_aligned (const void *ptr) {
     return ip % alignof(T) == 0;
 }
 
+// SFINAE helper
+template <typename Base, typename Derived>
+using enable_if_base_of_t = typename std::enable_if<
+                                std::is_base_of< Base, Derived >::value
+                            >::type;
+    
 }  // namespace arraystore
 
 
@@ -349,10 +355,8 @@ struct TypedStore {
 
 // For creating i32as's etc, which wrap a TypedStore
 template <typename Container, typename Elem,
-          class = typename std::enable_if<
-                      std::is_base_of<TypedStore<Elem>, Container>::value
-                  >::type
-          >
+          class = enable_if_base_of_t< TypedStore<Elem>,
+                                       Container >>
 Container * makeTypedStoreContainer (asenv_t *env, const char *name) {
     Container *res = allocate<Container> ();
     int rc = res->open (env, name);
@@ -648,11 +652,8 @@ private:
 template <typename Container,
           class Store = typename Container::store_type,
           class Value = typename Container::value_type,
-          class = typename std::enable_if<
-                      std::is_base_of< TypedStoreIter<TypedStore<Value>>,
-                                       Container >::value
-                  >::type
-          >
+          class = enable_if_base_of_t< TypedStoreIter<TypedStore<Value>>,
+                                       Container >>
 Container * makeIterContainer (Store *store, astxn_t *txn) {
     Container *res = allocate<Container> ();
     int rc = res->open (store, txn);
