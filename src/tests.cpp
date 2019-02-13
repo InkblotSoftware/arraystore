@@ -210,6 +210,8 @@ void testArrayStore (asenv_t *env,
     {
         astxn_t *txn = astxn_new_rdrw (env);
         enforce (txn);
+        enforce (astxn_is_rdrw (txn));
+        enforce (! astxn_is_rdonly (txn));
 
         enforce (! storeFuns.exists (store, txn, 111));
 
@@ -250,6 +252,8 @@ void testArrayStore (asenv_t *env,
     {
         astxn_t *txn = astxn_new_rdonly (env);
         enforce (txn);
+        enforce (astxn_is_rdonly (txn));
+        enforce (! astxn_is_rdrw (txn));
 
         // Main data
         Span sp = storeFuns.get (store, txn, 111);

@@ -239,6 +239,14 @@ extern "C" {
         assert (self);
         return self->commit ();
     }
+    bool astxn_is_rdonly (astxn_t *self) {
+        assert (self);
+        return self->rdonly;
+    }
+    bool astxn_is_rdrw (astxn_t *self) {
+        assert (self);
+        return ! astxn_is_rdonly (self);
+    }
 }
 
 
