@@ -86,6 +86,27 @@ Assuming you're on a Linux or similar system, you can run the project tests
 using `make check` and `make memcheck` (the latter adds valgrind).
 
 
+Bindings
+--------
+
+Java bindings to the library based on JNA are also supplied, in the form
+of idiomatic wrapper classes. They're pretty obvious to use, but since you
+MUST close them after use you're advised to use via try-with-resources
+statements.
+
+You can find these as a maven project under `bindings/java/arraystore`.
+Note that they're currently less tested than the library proper, so there's
+a possiblity of weirdness, but it's lower than sometimes as they're
+mostly template generated.
+
+More interestingly, Java obviously can't handle uint64 numbers easily,
+so we use simple long's in the API for specifying store entry keys.
+This means you mustn't pass in negative keys, since arraystore is still
+using unsigned integers internally, but also beware when using the library
+from other languages that you mustn't use keys too large to represent in
+a signed int64, as your Java code won't be able to access them. 
+
+
 Project classes
 ---------------
 
