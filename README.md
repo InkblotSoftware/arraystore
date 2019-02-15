@@ -12,6 +12,83 @@ engine, so inherits its zero-copy data access and cross-process ACID MVCC
 semantics.
 
 
+Code usage example
+------------------
+
+```c
+// #include <arraystore.h>
+
+// Open database environment
+asenv_t *env = asenv_new ("my_database.db");
+assert (env);   // NULL on error
+
+// Open an 'array store' of int32 arrays, called 'some_ints'
+i32as_t *store = i32as_new (env, "some_ints"); 
+assert (store);   // NULL on error
+
+// Array store keys are all uint64s
+uint64_t my_key = 98989;
+
+// Write some data
+{
+    astxn_t *txn = astxn_new_rdrw (env);
+    assert (txn);   // NULL on error
+    
+    int32_t data[] = {1, 2, 3};
+    int rc = i32as_put (store, txn, my_key, data, 3);
+    assert (!rc);   // 0 on success
+
+    rc = astxn_commit (txn);
+    assert (!rc);   // 0 on success
+    
+    astxn_destroy (&txn);   // dtrs are idempotent
+}
+
+// Read it back
+{
+    astxn_t *txn = astxn_new_rdonly (env);
+    assert (txn);
+    
+    i32span sp = i32as_get (store, txn, my_key);
+    assert (sp.data);   // .data is NULL on GET failure
+    assert (sp.size == 3);
+    assert (sp.data[2] == 3);
+    
+    astxn_destroy (&txn);
+}
+
+// Traverse the store via an iterator
+{
+    astxn_t *txn = astxn_new_rdonly (env);
+    assert (txn);
+
+    // NB iterator must not outlive transaction
+    i32asiter_t *iter = i32asiter_new (store, txn);
+    assert (iter);
+    
+    // Traverse all entries in the store
+    bool some = i32asiter_upfrom (iter, 0);
+    while (some) {
+        assert (i32asiter_key (iter) == my_key);
+        assert (i32asiter_array(iter).size == 3);
+        assert (i32asiter_array(iter).data[2] == 3);
+        some = i32asiter_next (iter);  // try to move to next entry
+    }
+
+    i32asiter_destroy (&iter);
+    astxn_destroy (&txn);
+}
+
+// Clean up
+i32as_destroy (&store);
+asenv_destroy (&env);
+```
+
+This program simply needs linking with -larraystore, and including its header
+directory. CMake can do this automatically for you, as the project is already
+set up for inclusion.
+
+
 Data design and model
 ---------------------
 
@@ -132,83 +209,6 @@ Value types (based on standard C types):
 - **i64span** - Of int64s
 - **f32span** - Of 32-bit floats 
 - **f64span** - Of 64-bit floats
-
-
-Code usage example
-------------------
-
-```c
-// #include <arraystore.h>
-
-// Open database environment
-asenv_t *env = asenv_new ("my_database.db");
-assert (env);   // NULL on error
-
-// Open an 'array store' of int32 arrays, called 'some_ints'
-i32as_t *store = i32as_new (env, "some_ints"); 
-assert (store);   // NULL on error
-
-// Array store keys are all uint64s
-uint64_t my_key = 98989;
-
-// Write some data
-{
-    astxn_t *txn = astxn_new_rdrw (env);
-    assert (txn);   // NULL on error
-    
-    int32_t data[] = {1, 2, 3};
-    int rc = i32as_put (store, txn, my_key, data, 3);
-    assert (!rc);   // 0 on success
-
-    rc = astxn_commit (txn);
-    assert (!rc);   // 0 on success
-    
-    astxn_destroy (&txn);   // dtrs are idempotent
-}
-
-// Read it back
-{
-    astxn_t *txn = astxn_new_rdonly (env);
-    assert (txn);
-    
-    i32span sp = i32as_get (store, txn, my_key);
-    assert (sp.data);   // .data is NULL on GET failure
-    assert (sp.size == 3);
-    assert (sp.data[2] == 3);
-    
-    astxn_destroy (&txn);
-}
-
-// Traverse the store via an iterator
-{
-    astxn_t *txn = astxn_new_rdonly (env);
-    assert (txn);
-
-    // NB iterator must not outlive transaction
-    i32asiter_t *iter = i32asiter_new (store, txn);
-    assert (iter);
-    
-    // Traverse all entries in the store
-    bool some = i32asiter_upfrom (iter, 0);
-    while (some) {
-        assert (i32asiter_key (iter) == my_key);
-        assert (i32asiter_array(iter).size == 3);
-        assert (i32asiter_array(iter).data[2] == 3);
-        some = i32asiter_next (iter);  // try to move to next entry
-    }
-
-    i32asiter_destroy (&iter);
-    astxn_destroy (&txn);
-}
-
-// Clean up
-i32as_destroy (&store);
-asenv_destroy (&env);
-```
-
-This program simply needs linking with -larraystore, and including its header
-directory. CMake can do this automatically for you, as the project is already
-set up for inclusion.
 
 
 Usage example case studies
