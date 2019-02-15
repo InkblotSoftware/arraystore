@@ -184,6 +184,18 @@ from other languages that you mustn't use keys too large to represent in
 a signed int64, as your Java code won't be able to access them. 
 
 
+Copyright and license
+---------------------
+
+All code is Copyright (c) 2019 Inkblot Software Limited.
+
+Licensed under the Mozilla Public License v2.0.
+
+This means you can link this library into your own projects BSD-style, but you
+can't remove code from files within this project and use it within your own
+files without opening up your project.
+
+
 Project classes
 ---------------
 
