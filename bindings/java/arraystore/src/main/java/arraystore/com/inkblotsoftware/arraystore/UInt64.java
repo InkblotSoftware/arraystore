@@ -8,9 +8,6 @@ public class UInt64 extends IntegerType {
     }
 
     public UInt64 (long value) {
-        // // TODO better exception
-        // if (value < 0)
-        //     throw new RuntimeException ("UInt can't be negative");
         super (4, value, true);
     }
 
