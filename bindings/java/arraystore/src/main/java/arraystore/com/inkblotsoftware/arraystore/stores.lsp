@@ -1,3 +1,5 @@
+;;; Copyright (C) 2019 Inkblot Software Limited
+
 ;;; Array stores support/generation code
 ;;;
 ;;; The basic idea is that each store is defined by a prim type (i32 etc)

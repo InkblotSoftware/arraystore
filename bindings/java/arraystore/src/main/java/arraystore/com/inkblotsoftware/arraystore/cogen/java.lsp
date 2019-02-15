@@ -1,3 +1,5 @@
+;;; Copyright (C) 2019 Inkblot Software Limited
+
 ;;; Java-specific helpers for cogen
 
 (context 'Java)

@@ -1,3 +1,5 @@
+// Copyright (C) 2019 Inkblot Software Limited
+
 #include <arraystore.h>
 #include <functional>
 #include <vector>

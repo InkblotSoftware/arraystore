@@ -1,3 +1,5 @@
+;;; Copyright (C) 2019 Inkblot Software Limited
+
 ;;; Entrypoint for writing template-based java source files
 
 (load "stores.lsp")

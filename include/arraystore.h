@@ -1,3 +1,5 @@
+// Copyright (C) 2019 Inkblot Software Limited
+
 // arraystore library public API
 
 #ifndef ARRAYSTORE_H_INCLUDED

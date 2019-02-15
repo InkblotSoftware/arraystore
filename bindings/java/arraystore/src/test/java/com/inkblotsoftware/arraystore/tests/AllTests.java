@@ -1,3 +1,5 @@
+// Copyright (C) 2019 Inkblot Software Limited
+
 // TODO write more tests, especially of the hand-written classes and
 // CLibrary, and also do full-ish coverage of at least one
 // template-generated store class

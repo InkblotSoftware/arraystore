@@ -1,3 +1,5 @@
+// Copyright (C) 2019 Inkblot Software Limited
+
 // arraystore library implementation
 //
 // Written in a very specific 'c with classes and templates' style to

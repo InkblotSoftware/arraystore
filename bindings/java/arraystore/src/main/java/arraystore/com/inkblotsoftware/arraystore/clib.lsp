@@ -1,3 +1,5 @@
+;;; Copyright (C) 2019 Inkblot Software Limited
+
 ;;; JNA c library wrapper generation code (project specific)
 
 (load "cogen/cogen.lsp")

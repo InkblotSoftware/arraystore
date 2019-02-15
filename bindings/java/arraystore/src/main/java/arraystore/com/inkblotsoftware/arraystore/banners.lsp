@@ -1,3 +1,5 @@
+;;; Copyright (C) 2019 Inkblot Software Limited
+
 ;;; Text banner literals used in source code
 
 (context 'Banners)

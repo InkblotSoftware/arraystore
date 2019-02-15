@@ -1,3 +1,5 @@
+;;; Copyright (C) 2019 Inkblot Software Limited
+
 ;;; Programmable source code generator
 ;;;
 ;;; The basic idea is that you compile templates to lambdas, then call

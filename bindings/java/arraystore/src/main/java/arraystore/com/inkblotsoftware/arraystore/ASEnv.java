@@ -1,3 +1,5 @@
+// Copyright (C) 2019 Inkblot Software Limited
+
 package com.inkblotsoftware.arraystore;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
