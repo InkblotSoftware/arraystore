@@ -10,7 +10,7 @@ public class UInt64 extends IntegerType {
     }
 
     public UInt64 (long value) {
-        super (4, value, true);
+        super (8, value, true);
     }
 
     static UInt64 of (long value) {
