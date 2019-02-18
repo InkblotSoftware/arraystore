@@ -100,3 +100,33 @@ add_custom_target (memcheck
   COMMAND rm -f ${TEST_DB_PATH} ${TEST_DB_PATH}-lock &&
           valgrind --leak-check=full ./run_tests ${TEST_DB_PATH}
 )
+
+
+##  ----------------------------------------------------------------------
+##  C++ bindings (header only)
+
+### The library itself
+
+add_library (arraystorexx INTERFACE)
+target_include_directories (arraystorexx
+  INTERFACE bindings/cpp/include)
+target_link_libraries (arraystorexx
+  INTERFACE arraystore)
+
+### Self tests
+
+add_executable (run_tests_cpp bindings/cpp/src/run_tests.cpp)
+target_link_libraries (run_tests_cpp
+  PRIVATE arraystorexx)
+target_include_directories (run_tests_cpp
+  PRIVATE ${LMDB_DIR})  # tests use lmdb funs directly
+
+### Running self tests
+
+set (CPP_TEST_DB_PATH ${CMAKE_BINARY_DIR}/CPP_TEST_SCRATCH_DB.db)
+
+add_custom_target (cpp-memcheck
+  DEPENDS run_tests_cpp
+  COMMAND rm -f ${CPP_TEST_DB_PATH} ${CPP_TEST_DB_PATH}-lock &&
+          valgrind --leak-check=full ./run_tests_cpp ${CPP_TEST_DB_PATH})
+

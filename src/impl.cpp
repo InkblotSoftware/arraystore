@@ -25,8 +25,8 @@
 #include <utility>
 
 // We put helpers into here
-namespace arraystore {}
-using namespace arraystore;
+namespace arraystore { namespace impl {} }
+using namespace arraystore::impl;
 
 
 
@@ -36,7 +36,8 @@ using namespace arraystore;
  *  ************************************************************
  */
 
-namespace arraystore {
+namespace arraystore { 
+namespace impl {
 
 // A key in an array store
 using Key = uint64_t;
@@ -85,6 +86,7 @@ using enable_if_base_of_t = typename std::enable_if<
                             >::type;
     
 }  // namespace arraystore
+}  // namespace impl
 
 
 /*
@@ -266,6 +268,7 @@ extern "C" {
 //  ==   (lmdb stores k1, v1, k2, v2 etc sequentially in file/mmap)
 
 namespace arraystore {
+namespace impl {
 
 template <typename T>
 struct TypedStore {
@@ -379,6 +382,7 @@ Container * makeTypedStoreContainer (asenv_t *env, const char *name) {
 }
 
 }  // namespace arraystore
+}  // namespace impl
 
 
 //  ======================================================================
@@ -560,6 +564,7 @@ extern "C" {
 //  ==    You MUST create these via calloc or similar, zeroing out memory
 
 namespace arraystore {
+namespace impl {
 
 template <typename Store>
 struct TypedStoreIter {
@@ -677,6 +682,7 @@ Container * makeIterContainer (Store *store, astxn_t *txn) {
 }
 
 }  // namespace arraystore
+}  // namespace impl
 
 
 //  ======================================================================

@@ -2,9 +2,9 @@
 
 ;;; JNA c library wrapper generation code (project specific)
 
-(load "cogen/cogen.lsp")
-(load "cogen/java.lsp")
-(load "banners.lsp")
+(load "../../../../../../../../../cogen/cogen.lsp")
+(load "../../../../../../../../../cogen/java.lsp")
+(load "../../../../../../../../../cogen/banners.lsp")
 
 (context 'Clib)
 

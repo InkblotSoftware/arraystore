@@ -166,6 +166,8 @@ using `make check` and `make memcheck` (the latter adds valgrind).
 Bindings
 --------
 
+### Java
+
 Java bindings to the library based on JNA are also supplied, in the form
 of idiomatic wrapper classes. They're pretty obvious to use, but since you
 MUST close them after use you're advised to use via try-with-resources
@@ -182,6 +184,17 @@ This means you mustn't pass in negative keys, since arraystore is still
 using unsigned integers internally, but also beware when using the library
 from other languages that you mustn't use keys too large to represent in
 a signed int64, as your Java code won't be able to access them. 
+
+### C++
+
+We also include a set of C++ wrapper classes which closely follow the
+C interface, but translate error codes to exceptions and call C class
+destructors via RAII.
+
+These are available as the header-only `arraystore.hpp` library in the
+`bindings/cpp` directory. If you're using CMake it be included by
+target_link_libraries()'ing to the `arraystorexx` library in the main
+CMake project.
 
 
 Copyright and license

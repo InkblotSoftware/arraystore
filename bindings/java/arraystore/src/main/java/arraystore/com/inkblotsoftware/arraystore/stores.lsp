@@ -4,9 +4,9 @@
 ;;;
 ;;; The basic idea is that each store is defined by a prim type (i32 etc)
 
-(load "cogen/cogen.lsp")
-(load "cogen/java.lsp")
-(load "banners.lsp")
+(load "../../../../../../../../../cogen/cogen.lsp")
+(load "../../../../../../../../../cogen/java.lsp")
+(load "../../../../../../../../../cogen/banners.lsp")
 
 (context 'Stores)
 
